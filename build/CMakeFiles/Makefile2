@@ -63,11 +63,11 @@ CMAKE_BINARY_DIR = /Users/haroon/Documents/FoodDelivery/Parallel_Programming/Hom
 # Directory level rules for the build root directory
 
 # The main recursive "all" target.
-all: CMakeFiles/matmul.dir/all
+all:
 .PHONY : all
 
 # The main recursive "codegen" target.
-codegen: CMakeFiles/matmul.dir/codegen
+codegen:
 .PHONY : codegen
 
 # The main recursive "preinstall" target.
@@ -75,40 +75,8 @@ preinstall:
 .PHONY : preinstall
 
 # The main recursive "clean" target.
-clean: CMakeFiles/matmul.dir/clean
+clean:
 .PHONY : clean
-
-#=============================================================================
-# Target rules for target CMakeFiles/matmul.dir
-
-# All Build rule for target.
-CMakeFiles/matmul.dir/all:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/matmul.dir/build.make CMakeFiles/matmul.dir/depend
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/matmul.dir/build.make CMakeFiles/matmul.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/haroon/Documents/FoodDelivery/Parallel_Programming/Homework-1/build/CMakeFiles --progress-num=1,2 "Built target matmul"
-.PHONY : CMakeFiles/matmul.dir/all
-
-# Build rule for subdir invocation for target.
-CMakeFiles/matmul.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/haroon/Documents/FoodDelivery/Parallel_Programming/Homework-1/build/CMakeFiles 2
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/matmul.dir/all
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/haroon/Documents/FoodDelivery/Parallel_Programming/Homework-1/build/CMakeFiles 0
-.PHONY : CMakeFiles/matmul.dir/rule
-
-# Convenience name for target.
-matmul: CMakeFiles/matmul.dir/rule
-.PHONY : matmul
-
-# codegen rule for target.
-CMakeFiles/matmul.dir/codegen:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/matmul.dir/build.make CMakeFiles/matmul.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/haroon/Documents/FoodDelivery/Parallel_Programming/Homework-1/build/CMakeFiles --progress-num=1,2 "Finished codegen for target matmul"
-.PHONY : CMakeFiles/matmul.dir/codegen
-
-# clean rule for target.
-CMakeFiles/matmul.dir/clean:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/matmul.dir/build.make CMakeFiles/matmul.dir/clean
-.PHONY : CMakeFiles/matmul.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.

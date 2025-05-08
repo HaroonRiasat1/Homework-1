@@ -4,18 +4,17 @@
 #include <sstream>
 #include <iomanip>
 #include <cmath>
+#include <algorithm>
+#include <omp.h>
 
+// Naive matrix multiplication
 void naive_matmul(float *C, const float *A, const float *B, int m, int n, int p)
 {
-    // Initialize result matrix C to zero
+    // Initialize C
     for (int i = 0; i < m; ++i)
-    {
         for (int j = 0; j < p; ++j)
-        {
             C[i * p + j] = 0.0f;
-        }
-    }
-    // Triple nested loop for naive matrix multiplication
+
     for (int i = 0; i < m; ++i)
     {
         for (int k = 0; k < n; ++k)
@@ -29,7 +28,71 @@ void naive_matmul(float *C, const float *A, const float *B, int m, int n, int p)
     }
 }
 
-bool validate_result(const std::string &ref_path, float *C, int m, int p)
+// Blocked (tiled) matrix multiplication
+void blocked_matmul(float *C, const float *A, const float *B,
+                    int m, int n, int p, int block_size)
+{
+    // Initialize C
+    for (int i = 0; i < m; ++i)
+        for (int j = 0; j < p; ++j)
+            C[i * p + j] = 0.0f;
+
+    for (int ii = 0; ii < m; ii += block_size)
+    {
+        for (int kk = 0; kk < n; kk += block_size)
+        {
+            for (int jj = 0; jj < p; jj += block_size)
+            {
+                int i_max = std::min(ii + block_size, m);
+                int k_max = std::min(kk + block_size, n);
+                int j_max = std::min(jj + block_size, p);
+                for (int i = ii; i < i_max; ++i)
+                {
+                    for (int k = kk; k < k_max; ++k)
+                    {
+                        float a_val = A[i * n + k];
+                        for (int j = jj; j < j_max; ++j)
+                        {
+                            C[i * p + j] += a_val * B[k * p + j];
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Parallel matrix multiplication with OpenMP
+void parallel_matmul(float *C, const float *A, const float *B,
+                     int m, int n, int p)
+{
+// Initialize C
+#pragma omp parallel for collapse(2)
+    for (int i = 0; i < m; ++i)
+    {
+        for (int j = 0; j < p; ++j)
+        {
+            C[i * p + j] = 0.0f;
+        }
+    }
+
+#pragma omp parallel for collapse(2)
+    for (int i = 0; i < m; ++i)
+    {
+        for (int j = 0; j < p; ++j)
+        {
+            float sum = 0.0f;
+            for (int k = 0; k < n; ++k)
+            {
+                sum += A[i * n + k] * B[k * p + j];
+            }
+            C[i * p + j] = sum;
+        }
+    }
+}
+
+// Validation (cent precision)
+bool validate_result(const std::string &ref_path, const float *C, int m, int p)
 {
     std::ifstream ref_file(ref_path);
     if (!ref_file)
@@ -42,7 +105,7 @@ bool validate_result(const std::string &ref_path, float *C, int m, int p)
     if (rm != m || rp != p)
     {
         std::cerr << "Dimension mismatch: reference is " << rm << "x" << rp
-                  << ", but computed is " << m << "x" << p << std::endl;
+                  << ", computed is " << m << "x" << p << std::endl;
         return false;
     }
     bool ok = true;
@@ -53,7 +116,6 @@ bool validate_result(const std::string &ref_path, float *C, int m, int p)
             float ref_val;
             ref_file >> ref_val;
             float comp_val = C[i * p + j];
-            // Compare at cent precision: round both to nearest hundredth
             int ref_scaled = static_cast<int>(std::round(ref_val * 100.0f));
             int comp_scaled = static_cast<int>(std::round(comp_val * 100.0f));
             if (ref_scaled != comp_scaled)
@@ -78,117 +140,74 @@ int main(int argc, char **argv)
     std::string folder = std::string("data/") + case_id + "/";
     std::string inputA_path = folder + "input0.raw";
     std::string inputB_path = folder + "input1.raw";
-    std::string result_path = folder + "result.raw";
     std::string ref_path = folder + "output.raw";
 
-    // Read dimensions and data of A
+    // Read A
     std::ifstream fileA(inputA_path);
     if (!fileA)
     {
-        std::cerr << "Error: Cannot open " << inputA_path << std::endl;
+        std::cerr << "Error opening " << inputA_path << std::endl;
         return 1;
     }
-    int m, n, p;
+    int m, n;
     fileA >> m >> n;
     float *A = new float[m * n];
-    for (int i = 0; i < m; ++i)
-    {
-        for (int j = 0; j < n; ++j)
-        {
-            fileA >> A[i * n + j];
-        }
-    }
+    for (int i = 0; i < m * n; ++i)
+        fileA >> A[i];
     fileA.close();
 
-    // Read dimensions and data of B
+    // Read B
     std::ifstream fileB(inputB_path);
     if (!fileB)
     {
-        std::cerr << "Error: Cannot open " << inputB_path << std::endl;
+        std::cerr << "Error opening " << inputB_path << std::endl;
         delete[] A;
         return 1;
     }
-    int bn, bp;
-    fileB >> bn >> bp;
+    int bn, p;
+    fileB >> bn >> p;
     if (bn != n)
     {
-        std::cerr << "Inner dimension mismatch: A is " << m << "x" << n
-                  << ", B is " << bn << "x" << bp << std::endl;
+        std::cerr << "Inner dimension mismatch" << std::endl;
         delete[] A;
         return 1;
     }
-    p = bp;
     float *B = new float[n * p];
-    for (int i = 0; i < n; ++i)
-    {
-        for (int j = 0; j < p; ++j)
-        {
-            fileB >> B[i * p + j];
-        }
-    }
+    for (int i = 0; i < n * p; ++i)
+        fileB >> B[i];
     fileB.close();
 
-    // Allocate C and perform multiplication
+    // Allocate C
     float *C = new float[m * p];
+
+    // Naive
+    double t0 = omp_get_wtime();
     naive_matmul(C, A, B, m, n, p);
+    double t1 = omp_get_wtime();
+    bool ok_naive = validate_result(ref_path, C, m, p);
+    std::cout << "Naive Time: " << (t1 - t0) << " s, "
+              << (ok_naive ? "PASS" : "FAIL") << std::endl;
 
-    // Write result matrix to file with dynamic precision
-    std::ofstream out(result_path);
-    if (!out)
-    {
-        std::cerr << "Error: Cannot open " << result_path << " for writing" << std::endl;
-        delete[] A;
-        delete[] B;
-        delete[] C;
-        return 1;
-    }
-    out << m << " " << p << "\n";
-    for (int i = 0; i < m; ++i)
-    {
-        for (int j = 0; j < p; ++j)
-        {
-            float val = C[i * p + j];
-            int scaled = static_cast<int>(std::round(val * 100.0f));
-            std::ostringstream oss;
-            oss << std::fixed;
-            if (scaled % 100 == 0)
-            {
-                // Whole number
-                oss << std::setprecision(0) << val;
-            }
-            else if (scaled % 10 == 0)
-            {
-                // One decimal place
-                oss << std::setprecision(1) << val;
-            }
-            else
-            {
-                // Two decimal places
-                oss << std::setprecision(2) << val;
-            }
-            out << oss.str();
-            if (j + 1 < p)
-                out << " ";
-        }
-        out << "\n";
-    }
-    out.close();
+    // Blocked
+    const int BLOCK_SIZE = 32; // adjust for best performance
+    t0 = omp_get_wtime();
+    blocked_matmul(C, A, B, m, n, p, BLOCK_SIZE);
+    t1 = omp_get_wtime();
+    bool ok_block = validate_result(ref_path, C, m, p);
+    std::cout << "Blocked (" << BLOCK_SIZE << ") Time: " << (t1 - t0)
+              << " s, " << (ok_block ? "PASS" : "FAIL") << std::endl;
 
-    // Validate result
-    bool valid = validate_result(ref_path, C, m, p);
-    if (valid)
-    {
-        std::cout << "Validation passed: result matches reference." << std::endl;
-    }
-    else
-    {
-        std::cerr << "Validation failed." << std::endl;
-    }
+    // Parallel
+    t0 = omp_get_wtime();
+    parallel_matmul(C, A, B, m, n, p);
+    t1 = omp_get_wtime();
+    bool ok_par = validate_result(ref_path, C, m, p);
+    std::cout << "Parallel (threads=" << omp_get_max_threads() << ") Time: "
+              << (t1 - t0) << " s, " << (ok_par ? "PASS" : "FAIL") << std::endl;
 
     // Clean up
     delete[] A;
     delete[] B;
     delete[] C;
-
-    return valid ? 0 : 1;
+    return 0;
 }
